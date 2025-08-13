@@ -1,5 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/router';
+import Toast from '../../components/Toast';
+import { useToast } from '../../hooks/useToast';
 import {
   AlertTriangle,
   CheckCircle,
@@ -20,8 +22,10 @@ export default function QSADashboard() {
   });
   const [selectedJobId, setSelectedJobId] = useState(null);
   const [loading, setLoading] = useState(false);
-  const [activeTab, setActiveTab] = useState('all'); // 'all', 'resolved', 'conflicts'
+  const [activeTab, setActiveTab] = useState('all');
   const router = useRouter();
+  const { toasts, removeToast, showSuccess, showError, showWarning, showInfo } =
+    useToast();
 
   useEffect(() => {
     const userData = localStorage.getItem('user');
@@ -50,15 +54,19 @@ export default function QSADashboard() {
       setMetrics(data.metrics);
     } catch (error) {
       console.error('Error loading dashboard:', error);
+      showError('Error loading dashboard data. Please refresh the page.');
     } finally {
       setLoading(false);
     }
   };
 
   const handleDeleteJob = async jobId => {
-    if (
-      !confirm(`Are you sure you want to permanently delete Job ID ${jobId}?`)
-    ) {
+    // Usando toast para confirmação ao invés de alert
+    const confirmDelete = window.confirm(
+      `Are you sure you want to permanently delete Job ID ${jobId}?`
+    );
+
+    if (!confirmDelete) {
       return;
     }
 
@@ -73,11 +81,14 @@ export default function QSADashboard() {
       });
 
       if (response.ok) {
-        alert(`Job ID ${jobId} permanently deleted from database.`);
+        showSuccess(`Job ID ${jobId} permanently deleted from database.`);
         loadDashboardData(); // Reload data
+      } else {
+        showError(`Failed to delete Job ID ${jobId}. Please try again.`);
       }
     } catch (error) {
       console.error('Error deleting job:', error);
+      showError('Error deleting job. Please try again.');
     }
   };
 
@@ -124,12 +135,34 @@ export default function QSADashboard() {
     }
   };
 
+  const copyToClipboard = async text => {
+    try {
+      await navigator.clipboard.writeText(text);
+      showSuccess('Job ID copied to clipboard!', 2000);
+    } catch (error) {
+      showError('Failed to copy to clipboard');
+    }
+  };
+
   if (!user) {
     return <div>Loading...</div>;
   }
 
   return (
     <div className='min-h-screen bg-gray-100'>
+      {/* Toast Container */}
+      <div className='fixed top-0 right-0 z-50 p-4 space-y-2'>
+        {toasts.map(toast => (
+          <Toast
+            key={toast.id}
+            message={toast.message}
+            type={toast.type}
+            duration={toast.duration}
+            onClose={() => removeToast(toast.id)}
+          />
+        ))}
+      </div>
+
       {/* Header */}
       <div className='bg-white shadow-sm border-b border-gray-200'>
         <div className='max-w-7xl mx-auto px-4 py-4'>
@@ -147,7 +180,7 @@ export default function QSADashboard() {
                 localStorage.removeItem('user');
                 router.push('/login');
               }}
-              className='text-sm text-blue-600 hover:text-blue-800'
+              className='text-sm text-blue-600 hover:text-blue-800 cursor-pointer'
             >
               Logout
             </button>
@@ -219,7 +252,7 @@ export default function QSADashboard() {
             <nav className='flex space-x-8 px-6'>
               <button
                 onClick={() => setActiveTab('all')}
-                className={`py-4 px-1 border-b-2 font-medium text-sm ${
+                className={`py-4 px-1 border-b-2 font-medium text-sm cursor-pointer ${
                   activeTab === 'all'
                     ? 'border-blue-500 text-blue-600'
                     : 'border-transparent text-gray-500 hover:text-gray-700'
@@ -229,7 +262,7 @@ export default function QSADashboard() {
               </button>
               <button
                 onClick={() => setActiveTab('resolved')}
-                className={`py-4 px-1 border-b-2 font-medium text-sm ${
+                className={`py-4 px-1 border-b-2 font-medium text-sm cursor-pointer ${
                   activeTab === 'resolved'
                     ? 'border-green-500 text-green-600'
                     : 'border-transparent text-gray-500 hover:text-gray-700'
@@ -239,7 +272,7 @@ export default function QSADashboard() {
               </button>
               <button
                 onClick={() => setActiveTab('conflicts')}
-                className={`py-4 px-1 border-b-2 font-medium text-sm ${
+                className={`py-4 px-1 border-b-2 font-medium text-sm cursor-pointer ${
                   activeTab === 'conflicts'
                     ? 'border-red-500 text-red-600'
                     : 'border-transparent text-gray-500 hover:text-gray-700'
@@ -315,13 +348,13 @@ export default function QSADashboard() {
                     <div className='flex gap-3'>
                       <button
                         onClick={() => handleDeleteJob(job.id)}
-                        className='px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 text-sm'
+                        className='px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 text-sm cursor-pointer'
                       >
                         🗑️ Delete Permanently
                       </button>
                       <button
-                        onClick={() => navigator.clipboard.writeText(job.id)}
-                        className='px-4 py-2 border border-gray-300 text-gray-700 rounded-md hover:bg-gray-50 text-sm'
+                        onClick={() => copyToClipboard(job.id)}
+                        className='px-4 py-2 border border-gray-300 text-gray-700 rounded-md hover:bg-gray-50 text-sm cursor-pointer'
                       >
                         📋 Copy Job ID
                       </button>

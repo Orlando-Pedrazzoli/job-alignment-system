@@ -1,6 +1,8 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/router';
 import DecisionTreeComponent from '../../components/DecisionTree';
+import Toast from '../../components/Toast';
+import { useToast } from '../../hooks/useToast';
 import { Search, ArrowLeft, Check, AlertCircle, Users } from 'lucide-react';
 
 export default function AnalystPage() {
@@ -12,6 +14,8 @@ export default function AnalystPage() {
   const [finalDecision, setFinalDecision] = useState('');
   const [loading, setLoading] = useState(false);
   const router = useRouter();
+  const { toasts, removeToast, showSuccess, showError, showWarning, showInfo } =
+    useToast();
 
   useEffect(() => {
     const userData = localStorage.getItem('user');
@@ -28,7 +32,10 @@ export default function AnalystPage() {
   }, [router]);
 
   const handleSearch = async () => {
-    if (!jobId.trim()) return;
+    if (!jobId.trim()) {
+      showWarning('Please enter a Job ID');
+      return;
+    }
     setLoading(true);
 
     try {
@@ -39,12 +46,14 @@ export default function AnalystPage() {
 
       if (data.status === 'new') {
         setCurrentStep('decision-tree');
+        showInfo('New Job ID found. Proceed with analysis.');
       } else if (data.status === 'second_analysis') {
         setCurrentStep('confirmation');
+        showInfo('Previous analysis found. Please review and confirm.');
       }
-      // Para 'completed' fica na tela de search mostrando resultado
     } catch (error) {
       console.error('Search error:', error);
+      showError('Error searching for Job ID. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -69,7 +78,6 @@ export default function AnalystPage() {
         agrees,
       };
 
-      // Se discorda, precisa incluir nova decisão
       if (!agrees && finalDecision) {
         submitData.decision = finalDecision;
       }
@@ -83,19 +91,23 @@ export default function AnalystPage() {
       const data = await response.json();
 
       if (data.status === 'resolved') {
-        alert(
-          `✅ Job ID ${jobId} resolved successfully!\nBoth analysts agreed on: ${data.finalDecision}\nSent to QSA Dashboard.`
+        showSuccess(
+          `Job ID ${jobId} resolved successfully! Both analysts agreed on: ${data.finalDecision}. Sent to QSA Dashboard.`,
+          6000
         );
       } else if (data.status === 'conflict') {
-        alert(
-          `⚠️ Conflict created for Job ID ${jobId}.\nDifferent decisions detected.\nSent to QSA for resolution.`
+        showWarning(
+          `Conflict created for Job ID ${jobId}. Different decisions detected. Sent to QSA for resolution.`,
+          6000
         );
       }
 
-      handleNewSearch();
+      setTimeout(() => {
+        handleNewSearch();
+      }, 1500);
     } catch (error) {
       console.error('Confirmation error:', error);
-      alert('Error submitting confirmation');
+      showError('Error submitting confirmation. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -117,13 +129,17 @@ export default function AnalystPage() {
 
       const data = await response.json();
 
-      alert(
-        `📝 First decision submitted for Job ID ${jobId}.\nWaiting for second analyst confirmation.`
+      showSuccess(
+        `Job submitted successfully! First decision submitted for Job ID ${jobId}. Waiting for second analyst confirmation.`,
+        5000
       );
-      handleNewSearch();
+
+      setTimeout(() => {
+        handleNewSearch();
+      }, 1500);
     } catch (error) {
       console.error('Submit error:', error);
-      alert('Error submitting decision');
+      showError('Error submitting decision. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -135,6 +151,19 @@ export default function AnalystPage() {
 
   return (
     <div className='min-h-screen bg-gray-100 py-8'>
+      {/* Toast Container */}
+      <div className='fixed top-0 right-0 z-50 p-4 space-y-2'>
+        {toasts.map(toast => (
+          <Toast
+            key={toast.id}
+            message={toast.message}
+            type={toast.type}
+            duration={toast.duration}
+            onClose={() => removeToast(toast.id)}
+          />
+        ))}
+      </div>
+
       <div className='container mx-auto px-4'>
         <div className='text-center mb-8'>
           <h1 className='text-3xl font-bold text-gray-900'>
@@ -146,7 +175,7 @@ export default function AnalystPage() {
               localStorage.removeItem('user');
               router.push('/login');
             }}
-            className='mt-2 text-sm text-blue-600 hover:text-blue-800'
+            className='mt-2 text-sm text-blue-600 hover:text-blue-800 cursor-pointer'
           >
             Logout
           </button>
@@ -175,11 +204,12 @@ export default function AnalystPage() {
                       onChange={e => setJobId(e.target.value)}
                       placeholder='Paste Job ID here (e.g., 615651774629057)'
                       className='flex-1 px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent'
+                      onKeyDown={e => e.key === 'Enter' && handleSearch()}
                     />
                     <button
                       onClick={handleSearch}
                       disabled={loading}
-                      className='px-6 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50 flex items-center gap-2'
+                      className='px-6 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50 flex items-center gap-2 cursor-pointer'
                     >
                       <Search size={16} />
                       {loading ? 'Searching...' : 'Search'}
@@ -210,7 +240,7 @@ export default function AnalystPage() {
                       </p>
                       <button
                         onClick={handleNewSearch}
-                        className='px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700'
+                        className='px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 cursor-pointer'
                       >
                         Search Next Job ID
                       </button>
@@ -276,14 +306,14 @@ export default function AnalystPage() {
                     <button
                       onClick={() => handleConfirmation(true)}
                       disabled={loading}
-                      className='flex-1 px-4 py-3 bg-green-600 text-white rounded-md hover:bg-green-700 disabled:opacity-50 font-medium'
+                      className='flex-1 px-4 py-3 bg-green-600 text-white rounded-md hover:bg-green-700 disabled:opacity-50 font-medium cursor-pointer'
                     >
                       {loading ? 'Processing...' : '✅ Yes, I Agree'}
                     </button>
                     <button
                       onClick={() => setCurrentStep('decision-tree')}
                       disabled={loading}
-                      className='flex-1 px-4 py-3 bg-red-600 text-white rounded-md hover:bg-red-700 disabled:opacity-50 font-medium'
+                      className='flex-1 px-4 py-3 bg-red-600 text-white rounded-md hover:bg-red-700 disabled:opacity-50 font-medium cursor-pointer'
                     >
                       ❌ No, I Disagree
                     </button>
@@ -293,7 +323,7 @@ export default function AnalystPage() {
                 <div className='text-center'>
                   <button
                     onClick={handleNewSearch}
-                    className='px-4 py-2 text-gray-600 hover:text-gray-800 border border-gray-300 rounded-md'
+                    className='px-4 py-2 text-gray-600 hover:text-gray-800 border border-gray-300 rounded-md cursor-pointer'
                   >
                     ← Back to Search
                   </button>
@@ -310,7 +340,6 @@ export default function AnalystPage() {
             onDecisionComplete={decision => {
               setFinalDecision(decision);
 
-              // Se é uma confirmação (discordou), submeter direto
               if (searchResult && searchResult.status === 'second_analysis') {
                 handleConfirmation(false);
               } else {
@@ -346,13 +375,13 @@ export default function AnalystPage() {
                   <button
                     onClick={handleSubmitDecision}
                     disabled={loading}
-                    className='flex-1 px-6 py-3 bg-blue-600 text-white rounded-md hover:bg-blue-700 font-medium disabled:opacity-50'
+                    className='flex-1 px-6 py-3 bg-blue-600 text-white rounded-md hover:bg-blue-700 font-medium disabled:opacity-50 cursor-pointer'
                   >
                     {loading ? 'Submitting...' : 'Submit Decision'}
                   </button>
                   <button
                     onClick={() => setCurrentStep('decision-tree')}
-                    className='px-6 py-3 border border-gray-300 text-gray-700 rounded-md hover:bg-gray-50'
+                    className='px-6 py-3 border border-gray-300 text-gray-700 rounded-md hover:bg-gray-50 cursor-pointer'
                   >
                     Back
                   </button>
